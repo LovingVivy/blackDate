@@ -1,0 +1,25 @@
+:root {
+  --pink: #ff6b9d;
+  --pink2: #ff9ec4;
+  --rose: #ff3d7f;
+  --lavender: #c084fc;
+  --purple: #9333ea;
+  --dark: #1a0a14;
+  --dark2: #2d0b2e;
+  --cream: #fff7f9;
+  --line: #f0e4ec;
+  --muted: #6b7280;
+  --color-page: #f8f0f5;
+  --color-surface: #ffffff;
+  --color-heading: #171717;
+  --color-text: #2f3137;
+  --color-muted: #646a73;
+  --color-border: #deded8;
+  --color-primary: #b42318;
+  --color-primary-hover: #8f1c13;
+  --color-primary-contrast: #ffffff;
+  --color-accent-soft: #f2e7df;
+  --color-focus: #f4a261;
+  --shadow-sm: 0 6px 18px rgb(23 23 23 / 8%);
+  --shadow-md: 0 18px 50px rgb(23 23 23 / 10%);
+}

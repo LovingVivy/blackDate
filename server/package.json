@@ -1,0 +1,21 @@
+{
+  "name": "@blackdate/server",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js",
+    "migrate": "node scripts/migrate.js",
+    "migrate:app-state": "node scripts/migrate-app-state.js",
+    "tables": "node scripts/tables.js",
+    "lint": "node --check src/index.js && node --check src/server.js && node --check src/auth.js && node --check src/db.js && node --check src/routes/api.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "morgan": "^1.10.1",
+    "pg": "^8.22.0"
+  }
+}
