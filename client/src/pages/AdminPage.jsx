@@ -15,6 +15,7 @@ const schemas = {
       { key: 'phone', label: 'Số điện thoại', type: 'text' },
       { key: 'role', label: 'Vai trò', type: 'select', options: ['customer', 'admin'] },
       { key: 'status', label: 'Trạng thái', type: 'select', options: ['active', 'locked'] },
+      { key: 'gender', label: 'Giới tính', type: 'select', options: ['other', 'male', 'female'] },
       { key: 'password', label: 'Mật khẩu mới (demo)', type: 'password', full: true },
     ],
   },
@@ -181,11 +182,19 @@ export function AdminPage() {
     loadAdminDataFromApi()
       .then((remoteData) => {
         if (!remoteData) return
-        setData(remoteData)
-        saveAdminData(remoteData)
+        setData((current) => {
+          const nextData = { ...remoteData, users: current.users?.length ? current.users : remoteData.users }
+          saveAdminData(nextData)
+          return nextData
+        })
       })
       .catch(() => showToast('Không thể tải dữ liệu DB, đang dùng dữ liệu cục bộ.'))
   }, [])
+
+  useEffect(() => {
+    if (!auth?.token || auth.user?.role !== 'admin') return
+    loadUsersFromDb()
+  }, [auth?.token, auth?.user?.role])
   const stats = useMemo(
     () => [
       ['Tài khoản', data.users.length],
@@ -222,16 +231,31 @@ export function AdminPage() {
     setDraft(emptyDraft)
   }
 
-  function saveEditor(event) {
+  async function saveEditor(event) {
     event.preventDefault()
     const normalized = normalizeRecord(draft, schema)
+    if (activeType === 'users') {
+      await saveUserRecord(normalized)
+      closeEditor()
+      return
+    }
     const nextRows = editingId ? rows.map((item) => (item.id === editingId ? normalized : item)) : [...rows, normalized]
     persist({ ...data, [activeType]: nextRows })
     closeEditor()
   }
 
-  function deleteRecord(id) {
+  async function deleteRecord(id) {
     if (!window.confirm('Bạn chắc chắn muốn xóa bản ghi này?')) return
+    if (activeType === 'users') {
+      try {
+        await request(`/api/admin/users/${id}`, { method: 'DELETE' })
+        await loadUsersFromDb()
+        showToast('Đã xóa tài khoản')
+      } catch (error) {
+        showToast(error.message || 'Chưa xóa được tài khoản')
+      }
+      return
+    }
     persist({ ...data, [activeType]: rows.filter((item) => item.id !== id) }, 'Đã xóa bản ghi')
   }
 
@@ -253,6 +277,37 @@ export function AdminPage() {
     const reader = new FileReader()
     reader.onload = () => updateDraft(key, reader.result)
     reader.readAsDataURL(file)
+  }
+
+  async function loadUsersFromDb() {
+    try {
+      const result = await request('/api/admin/users')
+      const users = Array.isArray(result.users) ? result.users : []
+      setData((current) => {
+        const nextData = { ...current, users }
+        saveAdminData(nextData)
+        return nextData
+      })
+    } catch (error) {
+      showToast(error.message || 'Không thể tải danh sách tài khoản')
+    }
+  }
+
+  async function saveUserRecord(record) {
+    try {
+      const payload = { ...record }
+      if (!payload.password) delete payload.password
+      const path = editingId ? `/api/admin/users/${editingId}` : '/api/admin/users'
+      const method = editingId ? 'PUT' : 'POST'
+      await request(path, {
+        method,
+        body: JSON.stringify(payload),
+      })
+      await loadUsersFromDb()
+      showToast('Đã lưu tài khoản vào DB.')
+    } catch (error) {
+      showToast(error.message || 'Chưa lưu được tài khoản')
+    }
   }
 
   return (

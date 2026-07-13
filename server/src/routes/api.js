@@ -156,6 +156,135 @@ apiRouter.post('/auth/logout', (_req, res) => {
   res.json({ ok: true })
 })
 
+apiRouter.get('/admin/users', requireAuth, requireAdmin, async (_req, res, next) => {
+  try {
+    const result = await pool.query(
+      `
+        select id, name, email, phone, role, status, avatar, gender, created_at
+        from users
+        where deleted_at is null
+        order by created_at desc
+      `,
+    )
+    res.json({ users: result.rows })
+  } catch (error) {
+    next(error)
+  }
+})
+
+apiRouter.post('/admin/users', requireAuth, requireAdmin, async (req, res, next) => {
+  try {
+    const name = required(req.body.name, 'name')
+    const email = required(req.body.email, 'email').toLowerCase()
+    const password = required(req.body.password, 'password')
+    const phone = cleanOptional(req.body.phone)
+    const role = cleanChoice(req.body.role, ['customer', 'admin'], 'customer')
+    const status = cleanChoice(req.body.status, ['active', 'locked'], 'active')
+    const avatar = cleanOptional(req.body.avatar)
+    const gender = cleanOptional(req.body.gender)
+
+    if (password.length < 4) {
+      res.status(400).json({ message: 'Mật khẩu cần tối thiểu 4 ký tự.' })
+      return
+    }
+
+    const result = await pool.query(
+      `
+        insert into users (name, email, phone, password_hash, role, status, avatar, gender)
+        values ($1, $2, $3, $4, $5, $6, $7, $8)
+        returning id, name, email, phone, role, status, avatar, gender, created_at
+      `,
+      [name, email, phone, hashPassword(password), role, status, avatar, gender],
+    )
+    res.status(201).json({ user: result.rows[0] })
+  } catch (error) {
+    if (error.code === '23505') {
+      res.status(409).json({ message: 'Email hoặc số điện thoại đã tồn tại.' })
+      return
+    }
+    next(error)
+  }
+})
+
+apiRouter.put('/admin/users/:id', requireAuth, requireAdmin, async (req, res, next) => {
+  try {
+    const name = required(req.body.name, 'name')
+    const email = required(req.body.email, 'email').toLowerCase()
+    const phone = cleanOptional(req.body.phone)
+    const role = cleanChoice(req.body.role, ['customer', 'admin'], 'customer')
+    const status = cleanChoice(req.body.status, ['active', 'locked'], 'active')
+    const avatar = cleanOptional(req.body.avatar)
+    const gender = cleanOptional(req.body.gender)
+    const password = cleanOptional(req.body.password)
+
+    if (password && password.length < 4) {
+      res.status(400).json({ message: 'Mật khẩu cần tối thiểu 4 ký tự.' })
+      return
+    }
+
+    const result = await pool.query(
+      `
+        update users
+        set name = $1,
+            email = $2,
+            phone = $3,
+            role = $4,
+            status = $5,
+            avatar = $6,
+            gender = $7,
+            password_hash = coalesce($8, password_hash),
+            updated_at = now()
+        where id = $9 and deleted_at is null
+        returning id, name, email, phone, role, status, avatar, gender, created_at
+      `,
+      [name, email, phone, role, status, avatar, gender, password ? hashPassword(password) : null, req.params.id],
+    )
+
+    if (!result.rows[0]) {
+      res.status(404).json({ message: 'Không tìm thấy tài khoản.' })
+      return
+    }
+
+    res.json({ user: result.rows[0] })
+  } catch (error) {
+    if (error.code === '23505') {
+      res.status(409).json({ message: 'Email hoặc số điện thoại đã tồn tại.' })
+      return
+    }
+    next(error)
+  }
+})
+
+apiRouter.delete('/admin/users/:id', requireAuth, requireAdmin, async (req, res, next) => {
+  try {
+    if (req.params.id === req.user.id) {
+      res.status(400).json({ message: 'Không thể xóa chính tài khoản đang đăng nhập.' })
+      return
+    }
+
+    const result = await pool.query(
+      `
+        update users
+        set deleted_at = now(),
+            status = 'locked',
+            updated_at = now()
+        where id = $1 and deleted_at is null
+        returning id
+      `,
+      [req.params.id],
+    )
+
+    if (!result.rows[0]) {
+      res.status(404).json({ message: 'Không tìm thấy tài khoản.' })
+      return
+    }
+
+    res.json({ ok: true })
+  } catch (error) {
+    next(error)
+  }
+})
+
 apiRouter.get('/favorites', requireAuth, async (req, res, next) => {
   try {
     const result = await pool.query(
@@ -242,4 +371,9 @@ function required(value, field) {
 function cleanOptional(value) {
   const text = String(value ?? '').trim()
   return text || null
+}
+
+function cleanChoice(value, choices, fallback) {
+  const text = String(value ?? '').trim()
+  return choices.includes(text) ? text : fallback
 }
