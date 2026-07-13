@@ -1,6 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { useEffect, useMemo, useState } from 'react'
 import { createDefaultAdminData, loadAdminData, loadAdminDataFromApi, saveAdminData, saveAdminDataToApi } from '@/data/adminStore'
+import { request } from '@/services/httpClient'
 
 const schemas = {
   users: {
@@ -143,21 +144,38 @@ const emptyDraft = {}
 
 export function AdminPage() {
   const navigate = useNavigate()
+  const [auth, setAuth] = useState(() => readAuth())
   const [data, setData] = useState(() => loadAdminData())
   const [activeType, setActiveType] = useState('companions')
   const [editingId, setEditingId] = useState(null)
   const [draft, setDraft] = useState(emptyDraft)
   const [toast, setToast] = useState('')
 
+  const currentUser = auth?.user
   const schema = schemas[activeType]
   const rows = data[activeType] || []
 
   useEffect(() => {
-    const auth = readAuth()
-    if (!auth?.token || auth.user?.role !== 'admin') {
+    const savedAuth = readAuth()
+    if (!savedAuth?.token || savedAuth.user?.role !== 'admin') {
       navigate('/login')
+      return
     }
+    setAuth(savedAuth)
   }, [navigate])
+
+  useEffect(() => {
+    if (!auth?.token || auth.user?.role !== 'admin') return
+    request('/api/auth/me')
+      .then((result) => {
+        setAuth((current) => {
+          const nextAuth = { ...(current || readAuth()), user: result.user }
+          localStorage.setItem('blackdate_auth', JSON.stringify(nextAuth))
+          return nextAuth
+        })
+      })
+      .catch(() => {})
+  }, [auth?.token, auth?.user?.role])
 
   useEffect(() => {
     loadAdminDataFromApi()
@@ -242,10 +260,12 @@ export function AdminPage() {
       <aside className="admin-sidebar">
         <div className="admin-brand">BlackDate</div>
         <div className="admin-profile">
-          <span className="admin-profile-ava">BD</span>
+          <span className="admin-profile-ava">
+            {isImage(currentUser?.avatar) ? <img src={currentUser.avatar} alt={currentUser.name} /> : currentUser?.avatar || initials(currentUser?.name)}
+          </span>
           <div>
-            <strong>Admin BlackDate</strong>
-            <span>admin@blackdate.local</span>
+            <strong>{currentUser?.name || 'Admin'}</strong>
+            <span>{currentUser?.email || 'Chưa cập nhật email'}</span>
           </div>
         </div>
         <nav className="admin-tabs">
@@ -514,6 +534,15 @@ function nextId(rows) {
 
 function isImage(value) {
   return typeof value === 'string' && (value.startsWith('/') || value.startsWith('data:image/') || value.startsWith('http'))
+}
+
+function initials(name) {
+  return String(name || 'AD')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('')
 }
 
 function readAuth() {

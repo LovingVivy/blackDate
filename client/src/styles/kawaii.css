@@ -2255,10 +2255,17 @@ button {
   place-items: center;
   width: 46px;
   height: 46px;
+  overflow: hidden;
   border-radius: 50%;
   background: linear-gradient(135deg, var(--pink), var(--lavender));
   font-size: 13px;
   font-weight: 900;
+}
+
+.admin-profile-ava img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .admin-profile strong,
